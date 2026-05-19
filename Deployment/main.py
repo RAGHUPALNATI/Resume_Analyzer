@@ -1,38 +1,22 @@
 import pandas as pd
 import numpy as np
 from io import BytesIO
-import spacy
 import docx2txt
 import pdfplumber
 import pickle as pk
 import re
 import sklearn
 import PyPDF2
-import nltk
-from fastapi import FastAPI, UploadFile, File, HTTPException
+import os
+
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
-import os
 
-# Download necessary NLTK data
-nltk.download('punkt')
-nltk.download('averaged_perceptron_tagger')
-nltk.download('maxent_ne_chunker')
-nltk.download('words')
-nltk.download('wordnet')
-nltk.download('stopwords')
-nltk.download('omw-1.4')
+from skills_extractor import extract_skills_from_text
 
-import en_core_web_sm
-nlp = en_core_web_sm.load()
-from nltk.tokenize import RegexpTokenizer
-from nltk.stem import WordNetLemmatizer
-from nltk.corpus import stopwords
-stop = set(stopwords.words('english'))
-
-app = FastAPI(title="Resume Analyzer API")
+app = FastAPI(title="Resume Analyzer Dual-ML API")
 
 # Setup CORS
 app.add_middleware(
@@ -44,109 +28,65 @@ app.add_middleware(
 )
 
 # Load Models
+print("Loading models...")
+model_rfc = None
+vectorizer = None
+cluster_model = None
+embedder_model = None
+
 try:
-    model = pk.load(open('ModelRFC.pkl', 'rb'))
-    Vectorizer = pk.load(open('VECTOR.pkl', 'rb'))
+    with open('ModelRFC.pkl', 'rb') as f:
+        model_rfc = pk.load(f)
+    with open('VECTOR.pkl', 'rb') as f:
+        vectorizer = pk.load(f)
+    print("Supervised ML models loaded successfully.")
 except Exception as e:
-    print(f"Error loading models: {e}")
+    print(f"Warning: Supervised ML models not found: {e}")
 
-ROLE_KEYWORDS = {
-    'Frontend': ['html', 'css', 'javascript', 'react', 'vue', 'angular', 'frontend', 'ui', 'ux', 'web developer'],
-    'Backend': ['python', 'java', 'node', 'express', 'django', 'flask', 'spring', 'sql', 'backend', 'api'],
-    'Full Stack': ['frontend', 'backend', 'full stack', 'mern', 'mean', 'react', 'node', 'django', 'vue', 'database'],
-    'DevOps': ['aws', 'azure', 'gcp', 'docker', 'kubernetes', 'jenkins', 'ci/cd', 'terraform', 'ansible', 'devops'],
-    'AI Engineer': ['machine learning', 'deep learning', 'nlp', 'computer vision', 'tensorflow', 'pytorch', 'ai', 'artificial intelligence'],
-    'Android': ['android', 'kotlin', 'java', 'mobile', 'app developer', 'android studio'],
-    'iOS': ['ios', 'swift', 'objective-c', 'xcode', 'apple', 'mobile'],
-    'Data Analyst': ['excel', 'sql', 'tableau', 'powerbi', 'data analysis', 'statistics', 'dashboard'],
-    'Data Engineer': ['etl', 'spark', 'hadoop', 'kafka', 'data pipeline', 'airflow', 'redshift', 'bigquery'],
-    'Machine Learning': ['machine learning', 'scikit-learn', 'tensorflow', 'pytorch', 'model', 'predictive', 'algorithm'],
-    'Blockchain': ['blockchain', 'solidity', 'smart contract', 'ethereum', 'web3', 'crypto'],
-    'QA': ['qa', 'testing', 'selenium', 'cypress', 'automation', 'manual testing', 'quality assurance'],
-    'Cyber Security': ['security', 'penetration testing', 'firewall', 'ceh', 'cissp', 'vulnerability', 'network security'],
-    'UX Design': ['figma', 'sketch', 'adobe xd', 'wireframe', 'prototype', 'user experience', 'user interface'],
-    'Game Developer': ['unity', 'unreal', 'c#', 'c++', 'game design', '3d', 'gaming'],
-    'Product Manager': ['product management', 'agile', 'scrum', 'roadmap', 'jira', 'stakeholder', 'strategy'],
-    'PeopleSoft': ['peoplesoft', 'hcm', 'fscm', 'ps'],
-    'SQL Developer': ['sql', 'pl/sql', 'oracle', 'mysql', 'database', 'trigger', 'procedure'],
-    'React JS Developer': ['react', 'redux', 'javascript', 'frontend', 'jsx', 'component'],
-    'Workday': ['workday', 'hcm', 'integration', 'studio', 'eib', 'report']
-}
+try:
+    with open('cluster_model.pkl', 'rb') as f:
+        cluster_model = pk.load(f)
+    with open('embedder_model.pkl', 'rb') as f:
+        embedder_model = pk.load(f)
+    print("Unsupervised ML models loaded successfully.")
+except Exception as e:
+    print(f"Warning: Unsupervised ML models not found. Run clustering.py first: {e}")
 
-def predict_role_by_keywords(text, ml_prediction):
-    text_lower = text.lower()
-    best_role = ml_prediction
-    max_score = 0
+# Text cleaning function
+def preprocess(sentence):
+    sentence = str(sentence).lower()
+    sentence = sentence.replace('{html}', "") 
+    cleanr = re.compile('<.*?>')
+    cleantext = re.sub(cleanr, '', sentence)
+    rem_url = re.sub(r'http\S+', '', cleantext)
+    rem_num = re.sub('[0-9]+', '', rem_url)
     
-    for role, keywords in ROLE_KEYWORDS.items():
-        score = sum([1 for kw in keywords if kw in text_lower])
-        if score > max_score and score >= 2:
-            max_score = score
-            best_role = role
-            
-    return best_role
-
-def extract_skills(resume_text):
-    nlp_text = nlp(resume_text)
-    noun_chunks = nlp_text.noun_chunks
-    tokens = [token.text for token in nlp_text if not token.is_stop]
+    # Simple regex tokenizer to avoid full NLTK dependency if possible, 
+    # but maintaining the same preprocessing logic
+    tokens = re.findall(r'\w+', rem_num)
     
-    skills_path = os.path.join(os.path.dirname(__file__), '..', 'Datasets', 'skills.csv')
-    try:
-        data = pd.read_csv(skills_path)
-        skills = list(data.columns.values)
-    except:
-        skills = [] # Fallback if not found
-        
-    skillset = []
+    # Very basic stop word list to keep it fast and standalone if NLTK fails
+    basic_stopwords = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'}
+    filtered_words = [w for w in tokens if len(w) > 2 and w not in basic_stopwords]
     
-    for token in tokens:
-        if token.lower() in skills:
-            skillset.append(token)
-            
-    for token in noun_chunks:
-        token = token.text.lower().strip()
-        if token in skills:
-            skillset.append(token)
-            
-    return [i.capitalize() for i in set([i.lower() for i in skillset])]
+    return " ".join(filtered_words)
 
 def getText(file_content, filename):
     fullText = ''
-    if filename.endswith('.docx'):
-        doc = docx2txt.process(BytesIO(file_content))
-        fullText = doc
-    elif filename.endswith('.pdf'):
-        pdoc = PyPDF2.PdfReader(BytesIO(file_content))
-        for page in pdoc.pages:
-            fullText += page.extract_text()
+    try:
+        if filename.endswith('.docx'):
+            doc = docx2txt.process(BytesIO(file_content))
+            fullText = doc
+        elif filename.endswith('.pdf'):
+            # Using pdfplumber as it is robust
+            with pdfplumber.open(BytesIO(file_content)) as pdf:
+                for page in pdf.pages:
+                    text = page.extract_text()
+                    if text:
+                        fullText += text + "\n"
+    except Exception as e:
+        print(f"Error extracting text: {e}")
     return fullText
-
-def display(file_content, filename):
-    resume = []
-    if filename.endswith('.docx'):
-        resume.append(docx2txt.process(BytesIO(file_content)))
-    elif filename.endswith('.pdf'):
-        # Using pdfplumber for display extract
-        with pdfplumber.open(BytesIO(file_content)) as pdf:
-            pages = pdf.pages[0]
-            resume.append(pages.extract_text())
-    return resume
-
-def preprocess(sentence):
-    sentence=str(sentence)
-    sentence = sentence.lower()
-    sentence=sentence.replace('{html}',"") 
-    cleanr = re.compile('<.*?>')
-    cleantext = re.sub(cleanr, '', sentence)
-    rem_url=re.sub(r'http\S+', '',cleantext)
-    rem_num = re.sub('[0-9]+', '', rem_url)
-    tokenizer = RegexpTokenizer(r'\w+')
-    tokens = tokenizer.tokenize(rem_num)  
-    filtered_words = [w for w in tokens if len(w) > 2 if not w in stopwords.words('english')]
-    lemmatizer = WordNetLemmatizer()
-    lemma_words=[lemmatizer.lemmatize(w) for w in filtered_words]
-    return " ".join(lemma_words)
 
 # Serve static files
 os.makedirs("static", exist_ok=True)
@@ -157,33 +97,94 @@ async def root():
     return FileResponse("static/index.html")
 
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)):
+async def predict_old(file: UploadFile = File(...)):
+    """Legacy endpoint for backward compatibility"""
     if not (file.filename.endswith('.pdf') or file.filename.endswith('.docx')):
         raise HTTPException(status_code=400, detail="Only PDF and DOCX files are supported.")
     
     file_content = await file.read()
     
     try:
-        # Get raw text
         extText = getText(file_content, file.filename)
+        cleaned = preprocess(extText)
         
-        # Get text for preprocessing
-        dispText = display(file_content, file.filename)
-        cleaned = preprocess(dispText)
-        
-        # Predict using ML model
-        ml_prediction = model.predict(Vectorizer.transform([cleaned]))[0]
-        
-        # Keyword refinement
-        final_prediction = predict_role_by_keywords(extText, ml_prediction)
-        
-        # Extract skills
-        extracted_skills = extract_skills(extText)
-        
+        ml_prediction = "Unknown"
+        if model_rfc and vectorizer:
+            ml_prediction = model_rfc.predict(vectorizer.transform([cleaned]))[0]
+            
         return {
             "filename": file.filename,
-            "predicted_profile": final_prediction,
-            "skills": extracted_skills
+            "predicted_profile": ml_prediction,
+            "message": "Please use /analyze for the full Dual-ML analysis."
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/analyze")
+async def analyze_resume(file: UploadFile = File(None), text: str = Form(None)):
+    """Dual-ML analysis endpoint. Accepts a file or raw text."""
+    
+    extText = ""
+    
+    # 1. Extract text from file or form data
+    if file:
+        if not (file.filename.endswith('.pdf') or file.filename.endswith('.docx')):
+            raise HTTPException(status_code=400, detail="Only PDF and DOCX files are supported.")
+        file_content = await file.read()
+        extText = getText(file_content, file.filename)
+    elif text:
+        extText = text
+    else:
+        raise HTTPException(status_code=400, detail="Please provide a file or raw text.")
+        
+    if not extText.strip():
+        raise HTTPException(status_code=400, detail="Could not extract any text from the input.")
+
+    cleaned_text = preprocess(extText)
+    
+    # Outputs initialization
+    predicted_category = "Analysis Pending"
+    cluster_group = "Unclustered"
+    cluster_confidence = 0
+    
+    # 2. Supervised ML: Predict Category using Random Forest
+    if model_rfc and vectorizer:
+        try:
+            predicted_category = model_rfc.predict(vectorizer.transform([cleaned_text]))[0]
+        except Exception as e:
+            print(f"Prediction error: {e}")
+    else:
+        predicted_category = "RF Model Not Loaded"
+
+    # 3. Unsupervised ML: Predict Cluster using KMeans & SentenceTransformers
+    if cluster_model and embedder_model:
+        try:
+            embedding = embedder_model.encode([cleaned_text])
+            cluster_id = cluster_model.predict(embedding)[0]
+            cluster_group = f"Cluster {cluster_id} — Profile Type {cluster_id}"
+            
+            # Calculate Confidence based on distance to cluster center
+            center = cluster_model.cluster_centers_[cluster_id]
+            distance = np.linalg.norm(embedding[0] - center)
+            # Normalize distance to a confidence percentage (heuristic)
+            # Distance typically ranges from 0 to 2 for normalized embeddings
+            confidence = max(0, min(100, int(100 - (distance * 40))))
+            cluster_confidence = confidence
+        except Exception as e:
+            print(f"Clustering error: {e}")
+            cluster_group = "Clustering Failed"
+    else:
+        cluster_group = "Cluster Model Not Loaded"
+
+    # 4. Extract Skills using NLP
+    skills_data = extract_skills_from_text(extText, predicted_category)
+
+    # 5. Compile the final JSON response
+    return {
+        "predicted_category": predicted_category,
+        "cluster_group": cluster_group,
+        "cluster_confidence": cluster_confidence,
+        "top_skills": skills_data["top_skills"],
+        "match_score": skills_data["match_score"],
+        "missing_skills": skills_data["missing_skills"]
+    }

@@ -3,336 +3,469 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Resume Analyzer</title>
+    <title>Dual-ML Resume Analyzer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --primary-color: #6366f1;
-            --primary-hover: #4f46e5;
-            --bg-color: #f3f4f6;
-            --card-bg: #ffffff;
-            --text-main: #1f2937;
-            --text-muted: #6b7280;
-            --border-color: #e5e7eb;
+            --bg-dark: #0f172a;
+            --card-bg: #1e293b;
+            --primary-blue: #3b82f6;
+            --primary-green: #10b981;
+            --text-light: #f8fafc;
+            --text-muted: #94a3b8;
+            --danger-red: #ef4444;
+            --border-color: #334155;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
             min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(to right, var(--primary-blue), var(--primary-green));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
         }
 
         .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 900px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
             background-color: var(--card-bg);
-            padding: 2.5rem;
             border-radius: 1rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            padding: 2rem;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        }
+
+        .input-section h2 {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            color: var(--primary-blue);
+        }
+
+        textarea {
             width: 100%;
-            max-width: 600px;
-            text-align: center;
+            height: 150px;
+            background-color: var(--bg-dark);
+            border: 1px solid var(--border-color);
+            color: var(--text-light);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            resize: vertical;
+            margin-bottom: 1.5rem;
         }
 
-        h1 {
-            color: var(--primary-color);
-            margin-bottom: 0.5rem;
-            font-weight: 700;
-        }
-
-        p.subtitle {
-            color: var(--text-muted);
-            margin-bottom: 2rem;
-            font-size: 0.95rem;
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary-blue);
         }
 
         .upload-area {
             border: 2px dashed var(--border-color);
             border-radius: 0.75rem;
-            padding: 3rem 2rem;
+            padding: 2rem 1rem;
+            text-align: center;
             cursor: pointer;
             transition: all 0.3s ease;
-            background-color: #f9fafb;
             margin-bottom: 1.5rem;
         }
 
-        .upload-area:hover, .upload-area.dragover {
-            border-color: var(--primary-color);
-            background-color: #e0e7ff;
+        .upload-area:hover {
+            border-color: var(--primary-blue);
+            background-color: rgba(59, 130, 246, 0.1);
         }
 
         .upload-area input[type="file"] {
             display: none;
         }
 
-        .upload-icon {
-            font-size: 3rem;
-            color: var(--primary-color);
-            margin-bottom: 1rem;
-        }
-
-        .file-name {
-            margin-top: 1rem;
-            font-weight: 500;
-            color: var(--text-main);
-            word-break: break-all;
-        }
-
-        button {
-            background-color: var(--primary-color);
+        .btn {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(to right, var(--primary-blue), var(--primary-green));
             color: white;
             border: none;
-            padding: 0.75rem 2rem;
-            font-size: 1rem;
-            font-weight: 600;
             border-radius: 0.5rem;
+            font-size: 1.1rem;
+            font-weight: bold;
             cursor: pointer;
-            transition: background-color 0.2s ease;
-            width: 100%;
+            transition: opacity 0.3s;
         }
 
-        button:hover {
-            background-color: var(--primary-hover);
+        .btn:hover {
+            opacity: 0.9;
         }
 
-        button:disabled {
-            background-color: #9ca3af;
+        .btn:disabled {
+            background: var(--border-color);
+            color: var(--text-muted);
             cursor: not-allowed;
         }
 
-        .loading {
+        .dashboard {
             display: none;
-            margin-top: 1.5rem;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .metric-box {
+            background-color: var(--bg-dark);
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .metric-title {
             color: var(--text-muted);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--text-light);
+        }
+
+        .highlight-blue { color: var(--primary-blue); }
+        .highlight-green { color: var(--primary-green); }
+
+        .skills-section {
+            margin-top: 2rem;
+        }
+
+        .skills-section h3 {
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            color: var(--text-light);
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 0.4rem 0.8rem;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin: 0 0.5rem 0.5rem 0;
+        }
+
+        .tag-green {
+            background-color: rgba(16, 185, 129, 0.2);
+            color: var(--primary-green);
+            border: 1px solid rgba(16, 185, 129, 0.5);
+        }
+
+        .tag-red {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: var(--danger-red);
+            border: 1px solid rgba(239, 68, 68, 0.5);
+        }
+
+        .chart-container {
+            width: 100%;
+            height: 250px;
+            margin-top: 2rem;
+            background-color: var(--bg-dark);
+            padding: 1rem;
+            border-radius: 0.75rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.8);
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 1000;
         }
 
         .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid var(--primary-color);
+            width: 50px;
+            height: 50px;
+            border: 5px solid var(--border-color);
+            border-top-color: var(--primary-green);
             border-radius: 50%;
-            width: 24px;
-            height: 24px;
             animation: spin 1s linear infinite;
-            margin: 0 auto 0.5rem auto;
         }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .result-card {
-            display: none;
-            margin-top: 2rem;
-            padding: 1.5rem;
-            border: 1px solid var(--border-color);
-            border-radius: 0.75rem;
-            background-color: #f8fafc;
-            text-align: left;
-            animation: fadeIn 0.5s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .result-row {
-            margin-bottom: 1rem;
-        }
-
-        .result-label {
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-muted);
-            font-weight: 600;
-            margin-bottom: 0.25rem;
-        }
-
-        .result-value.role {
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: var(--primary-color);
-        }
-
-        .skill-tag {
-            display: inline-block;
-            background-color: #e0e7ff;
-            color: #3730a3;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            margin: 0.25rem 0.25rem 0 0;
-        }
-
-        .error-msg {
-            color: #ef4444;
-            margin-top: 1rem;
-            display: none;
-            font-weight: 500;
-        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
+    <div class="header">
+        <h1>Dual-ML Resume Analyzer</h1>
+        <p>Supervised Classification + Unsupervised Clustering Pipeline</p>
+    </div>
+
+    <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+        <p style="margin-top: 1rem; font-weight: bold;">Analyzing Resume...</p>
+    </div>
+
     <div class="container">
-        <h1>Resume Analyzer</h1>
-        <p class="subtitle">AI-powered resume classification and skill extraction</p>
+        <!-- INPUT SECTION -->
+        <div class="card input-section">
+            <h2>1. Text Input</h2>
+            <textarea id="resume-text" placeholder="Paste resume text here..."></textarea>
+            
+            <h2 style="text-align: center; color: var(--text-muted); margin: 1rem 0;">OR</h2>
 
-        <div class="upload-area" id="drop-zone">
-            <div class="upload-icon">📄</div>
-            <p>Drag and drop your resume here<br>or click to browse</p>
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Supported formats: PDF, DOCX</p>
-            <input type="file" id="file-input" accept=".pdf,.docx">
-            <div class="file-name" id="file-name"></div>
-        </div>
-
-        <button id="analyze-btn" disabled>Analyze Resume</button>
-
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>Analyzing document...</p>
-        </div>
-
-        <div class="error-msg" id="error-msg"></div>
-
-        <div class="result-card" id="result-card">
-            <div class="result-row">
-                <div class="result-label">Predicted Profile</div>
-                <div class="result-value role" id="predicted-role"></div>
+            <h2>2. File Upload</h2>
+            <div class="upload-area" id="drop-zone">
+                <p style="font-size: 2rem; margin-bottom: 0.5rem;">📄</p>
+                <p>Drag & Drop PDF/DOCX or Click</p>
+                <input type="file" id="file-input" accept=".pdf,.docx">
+                <p id="file-name" style="margin-top: 0.5rem; color: var(--primary-blue); font-weight: bold;"></p>
             </div>
-            <div class="result-row">
-                <div class="result-label">Extracted Skills</div>
-                <div id="skills-container"></div>
+
+            <button class="btn" id="analyze-btn">Analyze Resume</button>
+            <p id="error-msg" style="color: var(--danger-red); margin-top: 1rem; text-align: center; display: none;"></p>
+        </div>
+
+        <!-- DASHBOARD SECTION -->
+        <div class="card dashboard" id="dashboard">
+            <div class="metrics-grid">
+                <div class="metric-box">
+                    <div class="metric-title">Predicted Category</div>
+                    <div class="metric-value highlight-blue" id="val-category">--</div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.2rem;">Random Forest Model</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-title">Skill Cluster Group</div>
+                    <div class="metric-value highlight-green" id="val-cluster">--</div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.2rem;">K-Means & SentenceTransformers</div>
+                </div>
+            </div>
+
+            <div class="metrics-grid">
+                <div class="metric-box">
+                    <div class="metric-title">Cluster Confidence</div>
+                    <div class="metric-value" id="val-confidence">0%</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-title">Skill Match Score</div>
+                    <div class="metric-value" id="val-match">0%</div>
+                </div>
+            </div>
+
+            <!-- SKILLS BADGES -->
+            <div class="skills-section">
+                <h3>Detected Skills</h3>
+                <div id="detected-skills"></div>
+            </div>
+
+            <div class="skills-section">
+                <h3>Missing Suggested Skills</h3>
+                <div id="missing-skills"></div>
+            </div>
+
+            <!-- CHART -->
+            <div class="chart-container">
+                <canvas id="scoreChart"></canvas>
             </div>
         </div>
     </div>
 
     <script>
+        // DOM Elements
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
         const fileNameDisplay = document.getElementById('file-name');
+        const textArea = document.getElementById('resume-text');
         const analyzeBtn = document.getElementById('analyze-btn');
         const loading = document.getElementById('loading');
-        const resultCard = document.getElementById('result-card');
+        const dashboard = document.getElementById('dashboard');
         const errorMsg = document.getElementById('error-msg');
         
         let selectedFile = null;
+        let chartInstance = null;
 
-        // Click to open file dialog
+        // File Selection Logic
         dropZone.addEventListener('click', () => fileInput.click());
-
-        // Handle file selection
-        fileInput.addEventListener('change', (e) => {
-            handleFiles(e.target.files);
-        });
-
-        // Drag and drop events
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        });
-
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
-
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = 'var(--primary-blue)'; });
+        dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = 'var(--border-color)'; });
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
-            dropZone.classList.remove('dragover');
+            dropZone.style.borderColor = 'var(--border-color)';
             handleFiles(e.dataTransfer.files);
         });
 
         function handleFiles(files) {
             if (files.length > 0) {
-                const file = files[0];
-                const validExtensions = ['.pdf', '.docx'];
-                const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-
-                if (validExtensions.includes(fileExtension)) {
-                    selectedFile = file;
-                    fileNameDisplay.textContent = `Selected: ${file.name}`;
-                    analyzeBtn.disabled = false;
-                    errorMsg.style.display = 'none';
-                    resultCard.style.display = 'none';
-                } else {
-                    showError('Please upload a valid PDF or DOCX file.');
-                    resetSelection();
-                }
+                selectedFile = files[0];
+                fileNameDisplay.textContent = selectedFile.name;
+                textArea.value = ""; // Clear text if file selected
             }
         }
 
-        function resetSelection() {
-            selectedFile = null;
-            fileNameDisplay.textContent = '';
-            analyzeBtn.disabled = true;
-            fileInput.value = '';
-        }
-
-        function showError(message) {
-            errorMsg.textContent = message;
-            errorMsg.style.display = 'block';
-            resultCard.style.display = 'none';
-        }
-
-        // Analyze button click
+        // Analyze Action
         analyzeBtn.addEventListener('click', async () => {
-            if (!selectedFile) return;
+            const textContent = textArea.value.trim();
+            
+            if (!selectedFile && !textContent) {
+                showError("Please provide either resume text or a file upload.");
+                return;
+            }
 
-            // UI State
-            analyzeBtn.disabled = true;
-            loading.style.display = 'block';
+            loading.style.display = 'flex';
             errorMsg.style.display = 'none';
-            resultCard.style.display = 'none';
+            dashboard.style.display = 'none';
 
             const formData = new FormData();
-            formData.append('file', selectedFile);
+            if (selectedFile) {
+                formData.append('file', selectedFile);
+            } else {
+                formData.append('text', textContent);
+            }
 
             try {
-                const response = await fetch('/predict', {
+                const response = await fetch('/analyze', {
                     method: 'POST',
                     body: formData
                 });
 
                 const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Analysis failed');
 
-                if (!response.ok) {
-                    throw new Error(data.detail || 'Analysis failed');
-                }
-
-                // Display Results
-                document.getElementById('predicted-role').textContent = data.predicted_profile;
-                
-                const skillsContainer = document.getElementById('skills-container');
-                skillsContainer.innerHTML = '';
-                
-                if (data.skills && data.skills.length > 0) {
-                    data.skills.forEach(skill => {
-                        const span = document.createElement('span');
-                        span.className = 'skill-tag';
-                        span.textContent = skill;
-                        skillsContainer.appendChild(span);
-                    });
-                } else {
-                    skillsContainer.textContent = 'No specific skills extracted.';
-                    skillsContainer.style.color = 'var(--text-muted)';
-                    skillsContainer.style.fontSize = '0.9rem';
-                }
-
-                resultCard.style.display = 'block';
+                populateDashboard(data);
+                dashboard.style.display = 'block';
 
             } catch (error) {
                 showError(error.message);
             } finally {
                 loading.style.display = 'none';
-                analyzeBtn.disabled = false;
             }
         });
+
+        function showError(msg) {
+            errorMsg.textContent = msg;
+            errorMsg.style.display = 'block';
+        }
+
+        function populateDashboard(data) {
+            // Metrics
+            document.getElementById('val-category').textContent = data.predicted_category;
+            document.getElementById('val-cluster').textContent = data.cluster_group;
+            document.getElementById('val-confidence').textContent = `${data.cluster_confidence}%`;
+            document.getElementById('val-match').textContent = `${data.match_score}%`;
+
+            // Badges
+            const detectedDiv = document.getElementById('detected-skills');
+            detectedDiv.innerHTML = '';
+            if (data.top_skills.length === 0) detectedDiv.innerHTML = '<span style="color:var(--text-muted)">No specific skills detected.</span>';
+            data.top_skills.forEach(skill => {
+                const span = document.createElement('span');
+                span.className = 'tag tag-green';
+                span.textContent = skill;
+                detectedDiv.appendChild(span);
+            });
+
+            const missingDiv = document.getElementById('missing-skills');
+            missingDiv.innerHTML = '';
+            if (data.missing_skills.length === 0) missingDiv.innerHTML = '<span style="color:var(--text-muted)">No missing skills identified.</span>';
+            data.missing_skills.forEach(skill => {
+                const span = document.createElement('span');
+                span.className = 'tag tag-red';
+                span.textContent = skill;
+                missingDiv.appendChild(span);
+            });
+
+            // Update Chart
+            updateChart(data.cluster_confidence, data.match_score);
+        }
+
+        function updateChart(confidence, matchScore) {
+            const ctx = document.getElementById('scoreChart').getContext('2d');
+            
+            if (chartInstance) chartInstance.destroy();
+
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Cluster Confidence', 'Skill Match Score'],
+                    datasets: [{
+                        label: 'Scores (%)',
+                        data: [confidence, matchScore],
+                        backgroundColor: [
+                            'rgba(59, 130, 246, 0.7)', // Blue
+                            'rgba(16, 185, 129, 0.7)'  // Green
+                        ],
+                        borderColor: [
+                            'rgba(59, 130, 246, 1)',
+                            'rgba(16, 185, 129, 1)'
+                        ],
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#94a3b8', font: { size: 14 } }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
     </script>
 </body>
 </html>

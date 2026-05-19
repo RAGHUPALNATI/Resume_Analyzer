@@ -43,12 +43,24 @@ The NLP resume classification pipeline involves: data acquisition → preprocess
 | Layer | Technology |
 |---|---|
 | Backend API | FastAPI |
-| ML Model | Random Forest (scikit-learn) |
-| NLP | NLTK, TF-IDF Vectorizer |
+| Supervised ML Model | Random Forest (scikit-learn) |
+| Unsupervised ML Model | KMeans Clustering (scikit-learn) |
+| Embeddings | SentenceTransformers (`all-MiniLM-L6-v2`) |
+| NLP & Skills Extraction | NLTK, spaCy, TF-IDF Vectorizer |
 | Model Serialization | Pickle (`.pkl`) |
+| Frontend | Vanilla JS, HTML, CSS, Chart.js |
 | Server | Uvicorn |
 | Containerization | Docker |
 | Deployment | Render / Railway |
+
+---
+
+### `Dual-ML Architecture:`
+
+This project features a state-of-the-art **Dual-ML System**:
+1. **Supervised Classification:** Uses a trained Random Forest model and TF-IDF vectors to predict the precise Job Category.
+2. **Unsupervised Clustering:** Uses SentenceTransformers for high-dimensional semantic embeddings, clustered via KMeans (12 clusters) to group resumes by structural and semantic similarity.
+3. **Advanced Skill Extraction:** Uses spaCy NER and keyword matching to identify detected skills, suggest missing skills, and generate a structural match score.
 
 ---
 
