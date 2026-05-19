@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Analyzer</title>
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --border-color: #e5e7eb;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            padding: 2.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+            font-size: 0.95rem;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 0.75rem;
+            padding: 3rem 2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background-color: #f9fafb;
+            margin-bottom: 1.5rem;
+        }
+
+        .upload-area:hover, .upload-area.dragover {
+            border-color: var(--primary-color);
+            background-color: #e0e7ff;
+        }
+
+        .upload-area input[type="file"] {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .file-name {
+            margin-top: 1rem;
+            font-weight: 500;
+            color: var(--text-main);
+            word-break: break-all;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            width: 100%;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            margin-top: 1.5rem;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary-color);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 0.5rem auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result-card {
+            display: none;
+            margin-top: 2rem;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            background-color: #f8fafc;
+            text-align: left;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result-row {
+            margin-bottom: 1rem;
+        }
+
+        .result-label {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .result-value.role {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .skill-tag {
+            display: inline-block;
+            background-color: #e0e7ff;
+            color: #3730a3;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin: 0.25rem 0.25rem 0 0;
+        }
+
+        .error-msg {
+            color: #ef4444;
+            margin-top: 1rem;
+            display: none;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Resume Analyzer</h1>
+        <p class="subtitle">AI-powered resume classification and skill extraction</p>
+
+        <div class="upload-area" id="drop-zone">
+            <div class="upload-icon">📄</div>
+            <p>Drag and drop your resume here<br>or click to browse</p>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Supported formats: PDF, DOCX</p>
+            <input type="file" id="file-input" accept=".pdf,.docx">
+            <div class="file-name" id="file-name"></div>
+        </div>
+
+        <button id="analyze-btn" disabled>Analyze Resume</button>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Analyzing document...</p>
+        </div>
+
+        <div class="error-msg" id="error-msg"></div>
+
+        <div class="result-card" id="result-card">
+            <div class="result-row">
+                <div class="result-label">Predicted Profile</div>
+                <div class="result-value role" id="predicted-role"></div>
+            </div>
+            <div class="result-row">
+                <div class="result-label">Extracted Skills</div>
+                <div id="skills-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const fileNameDisplay = document.getElementById('file-name');
+        const analyzeBtn = document.getElementById('analyze-btn');
+        const loading = document.getElementById('loading');
+        const resultCard = document.getElementById('result-card');
+        const errorMsg = document.getElementById('error-msg');
+        
+        let selectedFile = null;
+
+        // Click to open file dialog
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        // Handle file selection
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        // Drag and drop events
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        function handleFiles(files) {
+            if (files.length > 0) {
+                const file = files[0];
+                const validExtensions = ['.pdf', '.docx'];
+                const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+
+                if (validExtensions.includes(fileExtension)) {
+                    selectedFile = file;
+                    fileNameDisplay.textContent = `Selected: ${file.name}`;
+                    analyzeBtn.disabled = false;
+                    errorMsg.style.display = 'none';
+                    resultCard.style.display = 'none';
+                } else {
+                    showError('Please upload a valid PDF or DOCX file.');
+                    resetSelection();
+                }
+            }
+        }
+
+        function resetSelection() {
+            selectedFile = null;
+            fileNameDisplay.textContent = '';
+            analyzeBtn.disabled = true;
+            fileInput.value = '';
+        }
+
+        function showError(message) {
+            errorMsg.textContent = message;
+            errorMsg.style.display = 'block';
+            resultCard.style.display = 'none';
+        }
+
+        // Analyze button click
+        analyzeBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            // UI State
+            analyzeBtn.disabled = true;
+            loading.style.display = 'block';
+            errorMsg.style.display = 'none';
+            resultCard.style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Analysis failed');
+                }
+
+                // Display Results
+                document.getElementById('predicted-role').textContent = data.predicted_profile;
+                
+                const skillsContainer = document.getElementById('skills-container');
+                skillsContainer.innerHTML = '';
+                
+                if (data.skills && data.skills.length > 0) {
+                    data.skills.forEach(skill => {
+                        const span = document.createElement('span');
+                        span.className = 'skill-tag';
+                        span.textContent = skill;
+                        skillsContainer.appendChild(span);
+                    });
+                } else {
+                    skillsContainer.textContent = 'No specific skills extracted.';
+                    skillsContainer.style.color = 'var(--text-muted)';
+                    skillsContainer.style.fontSize = '0.9rem';
+                }
+
+                resultCard.style.display = 'block';
+
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                loading.style.display = 'none';
+                analyzeBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

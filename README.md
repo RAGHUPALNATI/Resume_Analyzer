@@ -35,7 +35,6 @@
 <p>&#x2022; Random Forest classifier model selected for deployment .</p>
 
 ### `Deployment:`
-<div align="center">
-    <img src="https://github.com/ShubhamMore4/Project-Resume_Classification/blob/master/deployment.JPG" height= "300" width="700" />
-</div>
-<p>&#x2022; Depolyment using Streamlit</p>
+
+<p>&#x2022; Deployment using <strong>FastAPI</strong> as the backend and a lightweight <strong>Vanilla JS/HTML/CSS</strong> frontend.</p>
+<p>&#x2022; Includes a <code>Dockerfile</code> and <code>Procfile</code> for seamless deployment to platforms like Render, Heroku, or Railway.</p>
